@@ -1,0 +1,82 @@
+:root{
+    --radius: 16px;
+    --shadow-1: 0 4px 24px rgba(0, 0, 0, .08);
+    --shadow-2: 0 8px 32px rgba(0, 0, 0, .12);
+    --container: 1200px;
+    --brand: #553830;
+    --brand-600: #402b26;
+    --brand-300: #8a6b60;
+    --bg: #faf7f2;
+    --card: #ffffff;
+    --ink: #2b1e15;
+    --sub: #6a5b52;
+    --accent: #d4a373;
+    --chip: #efe5dc;
+}
+
+.header_containor {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #ffffffb3;
+
+}
+@supports (background-color: color-mix(in hsl, white 30%, black)) {
+  .header_containor {
+    background-color: color-mix(in hsl, var(--bg) 70%, white 30%);
+  }
+}
+
+.header_containor {
+  border-bottom: 1px solid color-mix(in srgb, var(--ink) 12%, transparent);
+  min-height: 8vh;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding-left: 5%;
+}
+
+.page_name {
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.nav_list {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.nav_list a {
+  text-decoration: none;
+  color: black;
+}
+
+.header_right {
+  display: flex;
+  align-items: center;
+  padding-right: 5%;
+}
+
+.create_cafe {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  padding: 0 14px;
+  background-color: rgb(85, 56, 48);
+  color: #fff;
+  border-radius: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.create_cafe:hover {
+  opacity: 0.9;
+}
