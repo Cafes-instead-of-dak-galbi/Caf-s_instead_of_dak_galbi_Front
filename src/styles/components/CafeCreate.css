@@ -1,0 +1,167 @@
+/* ============ CafeCreateModal.css (전체) ============ */
+:root{
+  --radius: 16px;
+  --shadow-1: 0 10px 30px rgba(0,0,0,.15);
+  --brand: #553830;
+  --brand-600:#402b26;
+  --bg: #faf7f2;
+  --card:#ffffff;
+  --ink:#2b1e15;
+  --sub:#6a5b52;
+  --accent:#d4a373;
+  --chip:#efe5dc;
+}
+
+/* 오버레이: 배경 복구 + 호환성 높은 fallback */
+.cafe-modal__overlay{
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.55);                 /* 기본 fallback */
+  backdrop-filter: blur(4px);
+  display: grid; place-items: center;
+  z-index: 9999;
+  padding: 24px;
+}
+@supports (background: color-mix(in oklab, black 55%, transparent)) {
+  .cafe-modal__overlay{
+    background: color-mix(in oklab, #000 55%, transparent);
+  }
+}
+
+/* 모달 본체: 최대 높이 80vh + 내부 스크롤 전용 레이아웃 */
+.cafe-modal{
+  width: min(980px, 100%);
+  background: var(--card);
+  color: var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-1);
+  border: 1px solid rgba(0,0,0,.06);
+  position: relative; z-index: 1;
+
+  max-height: 80vh;             /* ✅ 세로 최대 80% */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;             /* 모서리 내 스크롤 잘림 */
+}
+
+/* 헤더: 스크롤 시에도 항상 보이게 고정 */
+.cafe-modal__header{
+  position: sticky; top: 0; z-index: 2;        /* ✅ 고정 */
+  display:flex; align-items:center; justify-content:space-between;
+  padding: 16px 20px;
+  background: #fff;                             /* 배경 단색으로 안전하게 */
+  border-bottom: 1px solid #eee;
+}
+.cafe-modal__header h2{
+  margin:0; font-size: 20px; font-weight: 700; color: var(--brand-600);
+}
+.icon-btn{
+  all: unset; cursor: pointer; font-size: 26px; line-height: 1;
+  padding: 4px 8px; border-radius: 10px;
+}
+.icon-btn:hover{ background: #0000000d; }
+
+/* 그리드 본문: 내부만 스크롤, 스크롤바 감춤 */
+.cafe-modal__grid{
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 20px;
+  padding: 20px;
+
+  overflow: auto;                              /* ✅ 내부 스크롤 */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+
+  /* ✅ 스크롤바 숨김 (크로스브라우저) */
+  scrollbar-width: none;        /* Firefox */
+  -ms-overflow-style: none;     /* 구형 IE/Edge */
+}
+.cafe-modal__grid::-webkit-scrollbar{
+  width: 0; height: 0;          /* Chromium/WebKit */
+}
+
+/* 반응형: 세로 스택 */
+@media (max-width: 860px){
+  .cafe-modal__grid{ grid-template-columns: 1fr; }
+}
+
+/* 프리뷰 카드 */
+.cafe-modal__preview{
+  background: var(--bg);
+  border: 1px dashed rgba(85,56,48,.2);
+  border-radius: 14px;
+  overflow: hidden;
+  display:flex; flex-direction: column;
+}
+.preview__image{
+  background: #f2ece6;
+  min-height: 180px;
+  display:grid; place-items:center;
+}
+.preview__image img{ width: 100%; height: 220px; object-fit: cover; display:block; }
+.preview__placeholder{
+  color: #8a7f77; font-size: 14px;
+}
+.preview__body{ padding: 14px 14px 18px; }
+.preview__title{ margin: 0 0 8px; font-size: 20px; }
+.preview__meta{ display:flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+.chip{
+  background: var(--chip);
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px; color: var(--brand-600);
+}
+.preview__address{ margin: 6px 0; color: var(--sub); font-size: 14px; }
+.preview__desc{ margin: 8px 0 10px; font-size: 14px; line-height: 1.5; color: var(--ink); }
+.preview__tags{ display:flex; flex-wrap: wrap; gap: 8px; }
+.tag{ font-size: 12px; color: var(--accent); }
+
+/* 폼 */
+.cafe-modal__form{
+  display: grid; gap: 14px;
+}
+.field{ display:flex; flex-direction: column; gap: 8px; }
+.field-row{ display:grid; gap: 12px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 480px){ .cafe-modal__form .field-row{ grid-template-columns: 1fr; } }
+
+label{ font-size: 13px; color: var(--sub); }
+input, select, textarea{
+  border: 1px solid #e7e2dd;
+  background: #fff;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus{
+  border-color: #7a5a50;
+  box-shadow: 0 0 0 3px rgba(122,90,80,.18);
+}
+
+/* 체크박스 그룹 */
+.field--checkbox{
+  border: 1px solid #eee; border-radius: 12px; padding: 10px 12px;
+  display:flex; flex-wrap: wrap; gap: 12px;
+}
+.field--checkbox legend{
+  font-size: 12px; color: var(--sub); padding: 0 6px;
+}
+.field--checkbox label{ display:flex; align-items:center; gap: 6px; }
+
+.help{ color: #8a7f77; font-size: 12px; }
+
+/* 액션 버튼 */
+.actions{
+  display: flex; justify-content: flex-end; gap: 10px; margin-top: 6px;
+}
+.btn{
+  border: 1px solid #e5ddd5; background: #fff; color: var(--brand-600);
+  padding: 10px 14px; border-radius: 12px; cursor: pointer; font-weight: 600;
+}
+.btn:hover{ background: #faf7f2; }
+.btn.primary{
+  background: var(--brand); color: #fff; border-color: var(--brand);
+}
+.btn.primary:hover{ background: var(--brand-600); }
+.btn.ghost{
+  background: transparent; color: var(--ink);
+}
