@@ -1,0 +1,25 @@
+/* 레이아웃 */
+.split { display: grid; grid-template-columns: 340px 1fr; height: 100dvh; }
+.sidebar { border-right: 1px solid #e9e9e9; background: #fafafa; overflow: auto; }
+.content { overflow: auto; }
+
+/* 헤더 */
+.brand { padding: 16px 20px; border-bottom: 1px solid #e9e9e9; }
+.title { margin: 0; font-size: 20px; line-height: 1.3; }
+.subtitle { margin: 4px 0 0; font-size: 13px; color: #777; }
+
+/* 리스트 자리 */
+.list { padding: 12px 20px; }
+.placeholder { padding: 16px; border: 1px dashed #cfcfcf; border-radius: 12px; color: #777; background: #fff; }
+
+/* 지도 자리 */
+.map-wrap { padding: 16px 20px; }
+.map-placeholder {
+  height: 420px;
+  border: 1px dashed #cfcfcf;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #777;
+  background: #fff;
+}
