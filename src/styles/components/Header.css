@@ -43,6 +43,8 @@
 .page_name {
   font-weight: 800;
   white-space: nowrap;
+  text-decoration: none;
+  color:rgb(85, 56, 48);
 }
 
 .nav_list {

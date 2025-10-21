@@ -1,0 +1,29 @@
+/* 공통 컨테이너 */
+.kakao-map {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+}
+
+/* 베이지 톤 테마(지도 전체 톤다운) */
+.kakao-map.kakao-map--beige > * {
+  filter: saturate(0.65) sepia(0.18) hue-rotate(345deg) brightness(1.06) contrast(0.93);
+}
+
+/* 은은한 조명 오버레이 */
+.kakao-map.kakao-map--beige::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 900px at 65% 35%, rgba(255, 245, 230, 0.38), transparent 60%),
+    linear-gradient(180deg, rgba(249, 242, 232, 0.22), rgba(255, 255, 255, 0) 40%);
+}
+
+/* 컨트롤/저작권 여백 */
+.kakao-map .footer,
+.kakao-map .wrap_controllers {
+  margin: 6px;
+}
