@@ -27,3 +27,87 @@
 .kakao-map .wrap_controllers {
   margin: 6px;
 }
+
+/* 카드 팝업 */
+.kakao-map .map-popup {
+  position: relative;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 12px 14px;
+  background: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.16);
+  border: 1px solid rgba(0,0,0,.06);
+  font-family: ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
+}
+.kakao-map .map-popup::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -8px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-right: 1px solid rgba(0,0,0,.06);
+  border-bottom: 1px solid rgba(0,0,0,.06);
+  transform: translateX(-50%) rotate(45deg);
+  box-shadow: 4px 4px 12px rgba(0,0,0,.06);
+}
+.kakao-map .map-popup__close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: 50%;
+  background: #f4efe9;
+  color: #6b5b52;
+  font-size: 16px;
+  line-height: 26px;
+  cursor: pointer;
+}
+.kakao-map .map-popup__title {
+  font-weight: 800;
+  font-size: 15px;
+  color: #3b2a1a;
+  margin-right: 28px; /* close 버튼 자리 */
+  margin-bottom: 6px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.kakao-map .map-popup__addr {
+  font-size: 12px;
+  color: #6b5b52;
+}
+.kakao-map .map-popup__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.kakao-map .btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid #d9cfc6;
+  background: #fff;
+  color: #6b5b52;
+  text-decoration: none;
+}
+.kakao-map .btn--primary {
+  border-color: #7b5b3a;
+  background: #7b5b3a;
+  color: #fff;
+}
+/* 뱃지 */
+.kakao-map .map-popup__chip {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  border-radius: 10px;
+}
+.kakao-map .map-popup__chip--fr { background: #6A4525; color: #fff; }
+.kakao-map .map-popup__chip--lo { background: #C9A27E; color: #3b2a1a; }
