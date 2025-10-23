@@ -1,13 +1,18 @@
+/* ========================================================================== */
+/* Kakao Map Base                                                             */
+/* ========================================================================== */
+
 /* 공통 컨테이너 */
 .kakao-map {
   position: relative;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* 베이지 톤 테마(지도 전체 톤다운) */
-.kakao-map.kakao-map--beige > * {
+/* 베이지 톤 테마: 지도 타일/컨트롤만 톤다운 */
+.kakao-map.kakao-map--beige > :not(.map-search):not(.ui-layer) {
   filter: saturate(0.65) sepia(0.18) hue-rotate(345deg) brightness(1.06) contrast(0.93);
 }
 
@@ -20,6 +25,7 @@
   background:
     radial-gradient(900px 900px at 65% 35%, rgba(255, 245, 230, 0.38), transparent 60%),
     linear-gradient(180deg, rgba(249, 242, 232, 0.22), rgba(255, 255, 255, 0) 40%);
+  z-index: 1;
 }
 
 /* 컨트롤/저작권 여백 */
@@ -28,7 +34,18 @@
   margin: 6px;
 }
 
-/* 카드 팝업 */
+/* 지도 위 사용자 UI 레이어(검색창 등)는 항상 맨 위) */
+.kakao-map .ui-layer,
+.kakao-map .map-search {
+  position: absolute;
+  z-index: 20;
+  filter: none !important; /* 테마 필터 무시 */
+}
+
+/* ========================================================================== */
+/* Custom Overlay (카드 팝업)                                                  */
+/* ========================================================================== */
+
 .kakao-map .map-popup {
   position: relative;
   min-width: 240px;
@@ -39,75 +56,121 @@
   box-shadow: 0 10px 30px rgba(0,0,0,.16);
   border: 1px solid rgba(0,0,0,.06);
   font-family: ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Apple SD Gothic Neo","Noto Sans KR","Malgun Gothic","Helvetica Neue",Arial,sans-serif;
+  animation: mapPopupIn .16s ease-out;
+  z-index: 20; /* 오버레이 위로 */
+  filter: none !important;
+}
+@keyframes mapPopupIn {
+  from { transform: translateY(4px); opacity: .0; }
+  to   { transform: translateY(0);   opacity: 1; }
 }
 .kakao-map .map-popup::after {
   content: "";
   position: absolute;
   left: 50%;
   bottom: -8px;
-  width: 16px;
-  height: 16px;
+  width: 16px; height: 16px;
   background: #fff;
   border-right: 1px solid rgba(0,0,0,.06);
   border-bottom: 1px solid rgba(0,0,0,.06);
   transform: translateX(-50%) rotate(45deg);
   box-shadow: 4px 4px 12px rgba(0,0,0,.06);
+  pointer-events: none;
 }
 .kakao-map .map-popup__close {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 26px;
-  height: 26px;
-  border: none;
-  border-radius: 50%;
-  background: #f4efe9;
-  color: #6b5b52;
-  font-size: 16px;
-  line-height: 26px;
-  cursor: pointer;
+  position: absolute; top: 6px; right: 6px;
+  width: 26px; height: 26px; border: none; border-radius: 50%;
+  background: #f4efe9; color: #6b5b52; font-size: 16px; line-height: 26px; cursor: pointer;
 }
 .kakao-map .map-popup__title {
-  font-weight: 800;
-  font-size: 15px;
-  color: #3b2a1a;
-  margin-right: 28px; /* close 버튼 자리 */
-  margin-bottom: 6px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+  font-weight: 800; font-size: 15px; color: #3b2a1a;
+  margin-right: 28px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px;
 }
-.kakao-map .map-popup__addr {
-  font-size: 12px;
-  color: #6b5b52;
-}
-.kakao-map .map-popup__actions {
-  display: flex;
-  gap: 8px;
-  margin-top: 10px;
-}
+.kakao-map .map-popup__addr { font-size: 12px; color: #6b5b52; }
+.kakao-map .map-popup__actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .kakao-map .btn {
-  display: inline-flex;
-  align-items: center;
-  padding: 6px 10px;
-  border-radius: 10px;
-  font-size: 12px;
-  border: 1px solid #d9cfc6;
-  background: #fff;
-  color: #6b5b52;
-  text-decoration: none;
+  display: inline-flex; align-items: center; padding: 6px 10px; border-radius: 10px;
+  font-size: 12px; border: 1px solid #d9cfc6; background: #fff; color: #6b5b52; text-decoration: none; cursor: pointer;
 }
-.kakao-map .btn--primary {
-  border-color: #7b5b3a;
-  background: #7b5b3a;
-  color: #fff;
-}
-/* 뱃지 */
-.kakao-map .map-popup__chip {
-  display: inline-block;
-  padding: 2px 6px;
-  font-size: 11px;
-  border-radius: 10px;
-}
+.kakao-map .btn--primary { border-color: #7b5b3a; background: #7b5b3a; color: #fff; }
+.kakao-map .map-popup__chip { display: inline-block; padding: 2px 6px; font-size: 11px; border-radius: 10px; line-height: 1.4; }
 .kakao-map .map-popup__chip--fr { background: #6A4525; color: #fff; }
 .kakao-map .map-popup__chip--lo { background: #C9A27E; color: #3b2a1a; }
+
+/* ========================================================================== */
+/* 검색창                                                                     */
+/* ========================================================================== */
+
+.kakao-map .map-search {
+  top: 12px; left: 12px; right: 12px;
+  max-width: 420px;
+}
+.kakao-map .map-search__input {
+  width: 100%; height: 40px; padding: 0 40px 0 14px;
+  border-radius: 12px; border: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.95); outline: none; font-size: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,.08);
+}
+.kakao-map .map-search__input::placeholder { color: #9b8f86; }
+/* 지우기 버튼 */
+.kakao-map .map-search__clear {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  width: 26px; height: 26px; border: 0; border-radius: 50%; background: #f1e9e2; color: #6b5b52; cursor: pointer;
+}
+/* 추천 목록 */
+.kakao-map .map-search__list {
+  margin-top: 6px; background: #fff; border: 1px solid rgba(0,0,0,.08); border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(0,0,0,.16); overflow: hidden; max-height: 320px; overflow-y: auto;
+}
+.kakao-map .map-search__item { width: 100%; text-align: left; display: block; padding: 10px 12px; border: 0; background: #fff; cursor: pointer; }
+.kakao-map .map-search__item + .map-search__item { border-top: 1px solid #f2f2f2; }
+.kakao-map .map-search__item:hover { background: #f8f5f2; }
+.kakao-map .map-search__item-title { font-weight: 700; color: #3b2a1a; font-size: 14px; }
+.kakao-map .map-search__item-sub { margin-top: 2px; font-size: 12px; color: #6b5b52; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kakao-map .map-search__chip { margin-left: 6px; padding: 1px 6px; font-size: 11px; border-radius: 10px; background: #efe5dc; color: #6b5b52; }
+
+/* 스크롤바(웹킷) */
+.kakao-map .map-search__list::-webkit-scrollbar { width: 10px; }
+.kakao-map .map-search__list::-webkit-scrollbar-thumb { background: #e9dfd6; border-radius: 8px; }
+.kakao-map .map-search__list::-webkit-scrollbar-track { background: transparent; }
+
+/* 반응형 */
+@media (max-width: 560px) {
+  .kakao-map .map-search { top: 10px; left: 10px; right: 10px; max-width: none; }
+  .kakao-map .map-search__input { height: 38px; font-size: 13px; }
+  .kakao-map .map-popup { min-width: 220px; max-width: 300px; }
+}
+
+/* Float Action Buttons (내 위치 등) */
+.kakao-map .map-fabs {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 20;              /* 지도 위로 */
+  filter: none !important;  /* 테마 필터 무시 */
+}
+
+.kakao-map .map-fab {
+  min-width: 84px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 12px;
+  background: #ffffff;
+  color: #3b2a1a;
+  font-size: 13px;
+  box-shadow: 0 6px 16px rgba(0,0,0,.12);
+  cursor: pointer;
+}
+.kakao-map .map-fab:hover { background: #f8f5f2; }
+.kakao-map .map-fab:disabled {
+  opacity: .6;
+  cursor: default;
+}
+.kakao-map .map-fab--myloc::before {
+  content: "📍";
+  margin-right: 6px;
+}

@@ -18,7 +18,7 @@ const Header = () => {
   return (
     <header className="header_containor">
       <nav className="nav">
-        <Link to="/" className="page_name">☕ Chuncheon Café</Link>
+        <Link to="/" className="page_name">☕ 닭갈비 말고 카페</Link>
         <ul className="nav_list">
           <li><Link to="/popular">인기</Link></li>
           <li><Link to="/map">지도</Link></li>

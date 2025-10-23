@@ -1,15 +1,16 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import "../../styles/components/Map.css";
 
 /**
  * 사용법 예시
  * <KakaoMap
- *   center={{ lat: 37.867, lng: 127.728 }}
+ *   center={{ lat: 37.88663, lng: 127.735395 }}
  *   level={5}
- *   theme="beige"                            // "beige" | "none"
+ *   theme="beige"                 // "beige" | "none"
  *   debugClickToCopy={true}
  *   onPlaceClick={(p) => console.log(p)}
- *   onPlacesLoaded={(list) => setList(list)} // 각 item에 __dong(동 이름) 포함
+ *   onPlacesLoaded={(list) => setList(list)} // __dong(동 이름) 포함
+ *   onMapApi={(api) => setMapApi(api)}       // 리스트 클릭 시 지도 제어
  *   style={{ width: "100%", height: 480 }}
  * />
  */
@@ -52,16 +53,12 @@ function loadKakaoSdk() {
   });
 }
 
-// 안전한 LatLng 생성(숫자/순서 보정)
+// 안전한 LatLng 생성
 function safeLatLng(kakao, lat, lng) {
   const la = Number(lat);
   const lo = Number(lng);
-  if (Number.isNaN(la) || Number.isNaN(lo)) {
-    throw new Error("Invalid coordinates");
-  }
-  if (Math.abs(la) > 90 && Math.abs(lo) <= 90) {
-    return new kakao.maps.LatLng(lo, la);
-  }
+  if (Number.isNaN(la) || Number.isNaN(lo)) throw new Error("Invalid coordinates");
+  if (Math.abs(la) > 90 && Math.abs(lo) <= 90) return new kakao.maps.LatLng(lo, la);
   return new kakao.maps.LatLng(la, lo);
 }
 
@@ -90,7 +87,7 @@ function makeCenterDotImage(kakao, stroke = "#7b5b3a") {
   });
 }
 
-// 문자열 이스케이프 (팝업 콘텐츠 안전)
+// XSS-safe 텍스트
 function escapeHtml(s = "") {
   return s
     .replaceAll("&", "&amp;")
@@ -101,10 +98,10 @@ function escapeHtml(s = "") {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// 춘천 bbox(대략값) + 타일링
+// 춘천 bbox + 타일링
 function getChuncheonBounds(kakao) {
-  const sw = new kakao.maps.LatLng(37.7500, 127.5500); // 남서
-  const ne = new kakao.maps.LatLng(38.0300, 127.9000); // 북동
+  const sw = new kakao.maps.LatLng(37.7500, 127.5500);
+  const ne = new kakao.maps.LatLng(38.0300, 127.9000);
   return new kakao.maps.LatLngBounds(sw, ne);
 }
 function splitBounds(bounds, rows = 4, cols = 4, kakao) {
@@ -134,13 +131,10 @@ const dedupeById = (list) => {
   });
 };
 
-// 프랜차이즈 판별(강건한 정규화)
+// 프랜차이즈 판별(정규화)
 function normalizeBrand(s) {
-  try {
-    return (s || "").normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "");
-  } catch {
-    return (s || "").toLowerCase().replace(/[^a-z0-9가-힣]+/g, "");
-  }
+  try { return (s || "").normalize("NFKD").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ""); }
+  catch { return (s || "").toLowerCase().replace(/[^a-z0-9가-힣]+/g, ""); }
 }
 const FRANCHISE_TOKENS = [
   "스타벅스","starbucks","스벅","리저브",
@@ -170,36 +164,87 @@ function isFranchiseName(name) {
   for (const t of BRAND_SET) if (n.includes(t)) return true;
   return false;
 }
-
-// 색상
 const COLOR_FRANCHISE = "#6A4525"; // 진한 브라운
 const COLOR_LOCAL = "#C9A27E";     // 연한 브라운
 
 // ──────────────────────────────────────────────────────────────────────────────
 
 export default function KakaoMap({
-  center = { lat: 37.867, lng: 127.728 }, // 한림대 인근
+  center = { lat: 37.88663, lng: 127.735395 },
   level = 5,
   theme = "beige",
   debugClickToCopy = true,
   onPlaceClick,
   onPlacesLoaded,
+  onMapApi, // ← 리스트에서 지도 제어용 API를 받는 콜백
   style = { width: "100%", height: "360px" },
   className,
 }) {
-  const containerRef = useRef(null);
+  // 지도/마커 레퍼런스
+  const mapBoxRef = useRef(null);          // 실제 지도 캔버스가 들어갈 div
   const mapRef = useRef(null);
   const centerMarkerRef = useRef(null);
   const clustererRef = useRef(null);
-  const cafeMarkersRef = useRef([]);
-  const overlayRef = useRef(null);          // 🔸 카드형 팝업(CustomOverlay)
-  const infoWindowRef = useRef(null);       // (미사용 예비)
+  const cafeMarkersRef = useRef([]);       // [{ place, marker, franchise }]
 
-  // 콜백 최신화 ref
+  // 팝업/콜백 레퍼런스
+  const overlayRef = useRef(null);
   const onPlaceClickRef = useRef(onPlaceClick);
   const onPlacesLoadedRef = useRef(onPlacesLoaded);
+  const openOverlayRef = useRef((place, marker) => {});
+
   useEffect(() => { onPlaceClickRef.current = onPlaceClick; }, [onPlaceClick]);
   useEffect(() => { onPlacesLoadedRef.current = onPlacesLoaded; }, [onPlacesLoaded]);
+
+  // 검색창 상태
+  const [query, setQuery] = useState("");
+  const [allPlaces, setAllPlaces] = useState([]); // withDong 저장
+
+  // 자동완성 목록 (간단 includes 기반)
+  const suggestions = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    const pick = [];
+    for (const p of allPlaces) {
+      const text = [
+        p.place_name,
+        p.__dong,
+        p.road_address_name,
+        p.address_name,
+        p.phone || p.tel,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      if (text.includes(q)) pick.push(p);
+      if (pick.length >= 12) break;
+    }
+    return pick;
+  }, [query, allPlaces]);
+
+  // 검색 결과 선택 → 포커스 & 팝업
+  const focusPlace = (p) => {
+    const map = mapRef.current;
+    if (!map || !p) return;
+
+    const t =
+      cafeMarkersRef.current.find((x) => x.place?.id === p.id) ||
+      cafeMarkersRef.current.find(
+        (x) => x.place?.x === p.x && x.place?.y === p.y && x.place?.place_name === p.place_name
+      );
+
+    if (t) {
+      map.setLevel(3, { animate: true });
+      map.panTo(t.marker.getPosition());
+      openOverlayRef.current?.(t.place, t.marker);
+    } else {
+      // 폴백: 좌표로만 이동
+      const pos = new window.kakao.maps.LatLng(Number(p.y), Number(p.x));
+      map.setLevel(3, { animate: true });
+      map.panTo(pos);
+    }
+    setQuery("");
+  };
 
   useEffect(() => {
     let unmounted = false;
@@ -208,16 +253,16 @@ export default function KakaoMap({
       .then(async (kakao) => {
         if (unmounted) return;
 
-        // 지도
+        // 지도 생성 (mapBoxRef 안에 렌더)
         const centerLatLng = safeLatLng(kakao, center.lat, center.lng);
-        const map = new kakao.maps.Map(containerRef.current, { center: centerLatLng, level });
+        const map = new kakao.maps.Map(mapBoxRef.current, { center: centerLatLng, level });
         mapRef.current = map;
 
         // 컨트롤
         const zoomControl = new kakao.maps.ZoomControl();
         map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
 
-        // 센터 표시
+        // 센터 마커
         centerMarkerRef.current = new kakao.maps.Marker({
           position: centerLatLng,
           map,
@@ -246,7 +291,7 @@ export default function KakaoMap({
         // 카드형 팝업
         overlayRef.current = new kakao.maps.CustomOverlay({ zIndex: 4 });
         kakao.maps.event.addListener(map, "click", () => {
-          if (overlayRef.current) overlayRef.current.setMap(null);
+          overlayRef.current?.setMap(null);
         });
 
         // 춘천 전체 타일링 → CE7 수집
@@ -254,7 +299,7 @@ export default function KakaoMap({
         map.setBounds(CHUNCHEON_BOUNDS);
 
         const tiles = splitBounds(CHUNCHEON_BOUNDS, 4, 4, kakao);
-        const places = new kakao.maps.services.Places();
+        const placesSvc = new kakao.maps.services.Places();
         const geocoder = new kakao.maps.services.Geocoder();
 
         const pinImageLocal = makePinImage(kakao, COLOR_LOCAL);
@@ -269,7 +314,7 @@ export default function KakaoMap({
               if (pagination && pagination.hasNextPage) pagination.nextPage();
               else resolve(acc);
             };
-            places.categorySearch("CE7", handle, {
+            placesSvc.categorySearch("CE7", handle, {
               bounds,
               size: 15,
               sort: kakao.maps.services.SortBy.ACCURACY,
@@ -295,14 +340,10 @@ export default function KakaoMap({
             const lat = Number(p.y), lng = Number(p.x);
             let dong = "";
             if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-              // eslint-disable-next-line no-await-in-loop
               dong = await coordToDong(lng, lat);
             }
             out.push({ ...p, __dong: dong });
-            if (i % 10 === 0) {
-              // eslint-disable-next-line no-await-in-loop
-              await new Promise((r) => setTimeout(r, 50));
-            }
+            if (i % 10 === 0) await new Promise((r) => setTimeout(r, 50));
           }
           return out;
         }
@@ -310,10 +351,8 @@ export default function KakaoMap({
         // 타일 순차 수집
         let all = [];
         for (let i = 0; i < tiles.length; i++) {
-          // eslint-disable-next-line no-await-in-loop
           const part = await searchCE7InBounds(tiles[i]);
           all.push(...part);
-          // eslint-disable-next-line no-await-in-loop
           await new Promise((r) => setTimeout(r, 120));
         }
 
@@ -328,122 +367,140 @@ export default function KakaoMap({
           return inBox || inChuncheonByAddr;
         });
 
-        // 동 이름 주석(초기 로딩을 동 기반으로)
+        // 동 이름 주석
         const withDong = await annotateDong(filtered);
-
-        // 외부 콜백
+        setAllPlaces(withDong); // ← 검색 자동완성에서 사용
         onPlacesLoadedRef.current && onPlacesLoadedRef.current(withDong);
 
-        // 기존 마커/클러스터 정리
-        if (cafeMarkersRef.current.length) {
-          cafeMarkersRef.current.forEach((m) => m.setMap(null));
-          cafeMarkersRef.current = [];
-        }
+        // 기존 마커 정리
+        cafeMarkersRef.current.forEach(({ marker }) => marker.setMap(null));
+        cafeMarkersRef.current = [];
         clustererRef.current?.clear();
 
-        // 마커 + 팝업
-        const markers = withDong.map((place) => {
+        // 팝업 오픈 함수 정의
+        openOverlayRef.current = (place, marker) => {
+          const addr = place.road_address_name || place.address_name || "";
+          const tel = place.phone || place.tel || "";
+          const franchise = isFranchiseName(place.place_name);
+          const badge = franchise
+            ? `<span class="map-popup__chip map-popup__chip--fr">프랜차이즈</span>`
+            : `<span class="map-popup__chip map-popup__chip--lo">개인 카페</span>`;
+          const lat = Number(place.y), lng = Number(place.x);
+          const dong = place.__dong ? ` (${escapeHtml(place.__dong)})` : "";
+          const id = `map-popup-${(place.id || `${lat}-${lng}`).toString().replace(/[^a-z0-9_-]/gi, "")}`;
+
+          const html = `
+            <div class="map-popup" id="${id}">
+              <button class="map-popup__close" type="button" data-role="close" aria-label="닫기">×</button>
+              <div class="map-popup__title">
+                ${escapeHtml(place.place_name || "")}${dong} ${badge}
+              </div>
+              <div class="map-popup__addr">${escapeHtml(addr)}</div>
+              <div class="map-popup__actions">
+                <a class="btn btn--primary" target="_blank" rel="noreferrer"
+                   href="https://map.kakao.com/link/to/${encodeURIComponent(place.place_name)},${place.y},${place.x}">
+                  길찾기 열기
+                </a>
+                ${tel ? `<a class="btn" href="tel:${tel.replace(/[^0-9+]/g,"")}">전화</a>` : ""}
+                <button class="btn" type="button" data-role="copy">좌표 복사</button>
+              </div>
+            </div>
+          `;
+          overlayRef.current.setContent(html);
+          overlayRef.current.setPosition(marker.getPosition());
+          overlayRef.current.setMap(map);
+
+          // 버튼 바인딩
+          setTimeout(() => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.querySelector('[data-role="close"]')?.addEventListener(
+              "click",
+              () => overlayRef.current.setMap(null),
+              { once: true }
+            );
+            const copyBtn = el.querySelector('[data-role="copy"]');
+            if (copyBtn && navigator.clipboard) {
+              copyBtn.addEventListener(
+                "click",
+                async () => {
+                  try {
+                    await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    const t = copyBtn.textContent;
+                    copyBtn.textContent = "복사됨!";
+                    setTimeout(() => (copyBtn.textContent = t), 900);
+                  } catch {}
+                },
+                { once: true }
+              );
+            }
+          }, 0);
+        };
+
+        // 마커 생성
+        const tuples = withDong.map((place) => {
           const lat = Number(place.y), lng = Number(place.x);
           if (Number.isNaN(lat) || Number.isNaN(lng)) return null;
           const pos = new kakao.maps.LatLng(lat, lng);
-
           const franchise = isFranchiseName(place.place_name);
           const image = franchise ? pinImageFranchise : pinImageLocal;
 
-          const m = new kakao.maps.Marker({
+          const marker = new kakao.maps.Marker({
             position: pos,
             title: place.place_name,
             image,
             zIndex: franchise ? 2 : 1,
           });
 
-          kakao.maps.event.addListener(m, "click", () => {
+          kakao.maps.event.addListener(marker, "click", () => {
             onPlaceClickRef.current && onPlaceClickRef.current(place);
-
-            const addr = place.road_address_name || place.address_name || "";
-            const tel = place.phone || place.tel || "";
-            const badge = franchise
-              ? `<span class="map-popup__chip map-popup__chip--fr">프랜차이즈</span>`
-              : `<span class="map-popup__chip map-popup__chip--lo">개인 카페</span>`;
-            const dong = place.__dong ? ` (${escapeHtml(place.__dong)})` : "";
-
-            const id = `map-popup-${(place.id || `${lat}-${lng}`).toString().replace(/[^a-z0-9_-]/gi, "")}`;
-            const html = `
-              <div class="map-popup" id="${id}">
-                <button class="map-popup__close" type="button" data-role="close" aria-label="닫기">×</button>
-                <div class="map-popup__title">
-                  ${escapeHtml(place.place_name || "")}${dong} ${badge}
-                </div>
-                <div class="map-popup__addr">${escapeHtml(addr)}</div>
-                <div class="map-popup__actions">
-                  <a class="btn btn--primary" target="_blank" rel="noreferrer"
-                     href="https://map.kakao.com/link/to/${encodeURIComponent(place.place_name)},${place.y},${place.x}">
-                    길찾기 열기
-                  </a>
-                  ${tel ? `<a class="btn" href="tel:${tel.replace(/[^0-9+]/g,"")}">전화</a>` : ""}
-                  <button class="btn" type="button" data-role="copy">좌표 복사</button>
-                </div>
-              </div>
-            `;
-
-            overlayRef.current.setContent(html);
-            overlayRef.current.setPosition(m.getPosition());
-            overlayRef.current.setMap(map);
-
-            // 버튼 동작 바인딩
-            setTimeout(() => {
-              const el = document.getElementById(id);
-              if (!el) return;
-              el.querySelector('[data-role="close"]')?.addEventListener(
-                "click",
-                () => overlayRef.current.setMap(null),
-                { once: true }
-              );
-              const copyBtn = el.querySelector('[data-role="copy"]');
-              if (copyBtn && navigator.clipboard) {
-                copyBtn.addEventListener(
-                  "click",
-                  async () => {
-                    try {
-                      await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
-                      const t = copyBtn.textContent;
-                      copyBtn.textContent = "복사됨!";
-                      setTimeout(() => (copyBtn.textContent = t), 900);
-                    } catch {}
-                  },
-                  { once: true }
-                );
-              }
-            }, 0);
+            openOverlayRef.current(place, marker);
           });
 
-          return m;
+          return { place, marker, franchise };
         }).filter(Boolean);
 
-        cafeMarkersRef.current = markers;
-        clustererRef.current.addMarkers(markers);
+        cafeMarkersRef.current = tuples;
+        clustererRef.current.addMarkers(tuples.map((t) => t.marker));
 
         // 결과 범위 맞춤
         const bounds = new kakao.maps.LatLngBounds();
         withDong.forEach((p) => bounds.extend(new kakao.maps.LatLng(Number(p.y), Number(p.x))));
         if (!bounds.isEmpty()) map.setBounds(bounds);
 
-        // 디버그: 클릭 → 센터 이동 + 좌표 복사
+        // 디버그: 클릭 → 좌표 복사
         if (debugClickToCopy) {
           kakao.maps.event.addListener(map, "click", (e) => {
             const lat = e.latLng.getLat();
             const lng = e.latLng.getLng();
             centerMarkerRef.current?.setPosition(e.latLng);
-            if (navigator.clipboard) {
-              navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`).catch(() => {});
-            }
+            navigator.clipboard?.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`).catch(() => {});
           });
         }
+
+        // 🔸 지도 제어 API 노출: 리스트에서 호출해 포커스/팝업
+        const api = {
+          /** place.id로 포커스 + 팝업 */
+          focusPlaceById: (id, opts = {}) => {
+            const t = cafeMarkersRef.current.find((x) => x.place?.id === id);
+            if (!t) return;
+            if (opts.level) map.setLevel(opts.level, { animate: true });
+            map.panTo(t.marker.getPosition());
+            openOverlayRef.current?.(t.place, t.marker);
+          },
+          /** 좌표로 포커스 (x:lng, y:lat) */
+          focusPlaceByCoord: (x, y, opts = {}) => {
+            const pos = new kakao.maps.LatLng(Number(y), Number(x));
+            if (opts.level) map.setLevel(opts.level, { animate: true });
+            map.panTo(pos);
+          },
+        };
+        typeof onMapApi === "function" && onMapApi(api);
       })
       .catch((err) => console.error("Kakao SDK load failed:", err));
 
     return () => { unmounted = true; };
-  }, [center.lat, center.lng, level, theme, debugClickToCopy]);
+  }, [center.lat, center.lng, level, theme, debugClickToCopy, onMapApi]);
 
   const themedClass =
     "kakao-map " + (theme === "beige" ? "kakao-map--beige" : "") + (className ? ` ${className}` : "");
@@ -452,27 +509,90 @@ export default function KakaoMap({
   useEffect(() => {
     return () => {
       centerMarkerRef.current?.setMap(null);
-      cafeMarkersRef.current.forEach((m) => m.setMap(null));
+      cafeMarkersRef.current.forEach(({ marker }) => marker.setMap(null));
       cafeMarkersRef.current = [];
       clustererRef.current?.clear();
       clustererRef.current?.setMap(null);
       overlayRef.current?.setMap(null);
-      infoWindowRef.current?.close?.();
       mapRef.current = null;
     };
   }, []);
 
+  // ───────────────────────────────────────────
+  // 렌더: 지도 캔버스 + 검색 오버레이
+  // ───────────────────────────────────────────
+  const onSubmitSearch = (e) => e.preventDefault();
+
+  const onKeyDown = (e) => {
+    if (e.key === "Escape") setQuery("");
+    if (e.key === "Enter" && suggestions[0]) {
+      e.preventDefault();
+      focusPlace(suggestions[0]);
+    }
+  };
+
   return (
     <div
-      ref={containerRef}
       className={themedClass}
       style={{
+        position: "relative",
         width: "100%",
         height: "360px",
         borderRadius: 16,
         overflow: "hidden",
         ...style,
       }}
-    />
+    >
+      {/* 실제 지도 캔버스 */}
+      <div
+        ref={mapBoxRef}
+        style={{ position: "absolute", inset: 0 }}
+      />
+
+      {/* 지도 위 검색창 오버레이 */}
+      <div className="map-search ui-layer" onMouseDown={(e) => e.stopPropagation()}>
+        <form onSubmit={onSubmitSearch} style={{ position: "relative" }}>
+          <input
+            className="map-search__input"
+            placeholder="카페명, 동, 주소, 전화 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={onKeyDown}
+          />
+          {query && (
+            <button
+              type="button"
+              className="map-search__clear"
+              aria-label="지우기"
+              onClick={() => setQuery("")}
+            >
+              ×
+            </button>
+          )}
+        </form>
+
+        {query && suggestions.length > 0 && (
+          <div className="map-search__list">
+            {suggestions.map((p) => (
+              <button
+                key={p.id || `${p.x},${p.y},${p.place_name}`}
+                type="button"
+                className="map-search__item"
+                onClick={() => focusPlace(p)}
+                title={p.place_name}
+              >
+                <div className="map-search__item-title">
+                  {p.place_name}
+                  {p.__dong ? <span className="map-search__chip">{p.__dong}</span> : null}
+                </div>
+                <div className="map-search__item-sub">
+                  {p.road_address_name || p.address_name || "주소 미상"}
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
   );
 }

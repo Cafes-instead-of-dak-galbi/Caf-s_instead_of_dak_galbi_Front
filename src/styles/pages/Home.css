@@ -1,25 +1,200 @@
-/* 레이아웃 */
-.split { display: grid; grid-template-columns: 340px 1fr; height: 100dvh; }
-.sidebar { border-right: 1px solid #e9e9e9; background: #fafafa; overflow: auto; }
-.content { overflow: auto; }
+/* =========================
+   레이아웃
+   ========================= */
+.split {
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  height: 100dvh;
+  overflow: hidden;              /* 상위 스크롤 방지 */
+}
+.sidebar {
+  border-right: 1px solid #e9e9e9;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;              /* 자식(list)만 스크롤 */
+  min-height: 0;
+}
+.content {
+  overflow: auto;
+}
 
-/* 헤더 */
-.brand { padding: 16px 20px; border-bottom: 1px solid #e9e9e9; }
+/* =========================
+   헤더(사이드바 상단)
+   ========================= */
+.brand {
+  padding: 16px 20px 12px 20px;
+  border-bottom: 1px solid #e9e9e9;
+  flex: 0 0 auto;
+}
 .title { margin: 0; font-size: 20px; line-height: 1.3; }
-.subtitle { margin: 4px 0 0; font-size: 13px; color: #777; }
+.subtitle { margin: 4px 0 8px; font-size: 13px; color: #777; }
 
-/* 리스트 자리 */
-.list { padding: 12px 20px; }
-.placeholder { padding: 16px; border: 1px dashed #cfcfcf; border-radius: 12px; color: #777; background: #fff; }
+/* =========================
+   검색
+   ========================= */
+.list-search { position: relative; margin-top: 6px; }
+.list-search__input {
+  width: 100%; height: 36px; padding: 0 36px 0 12px;
+  border: 1px solid #e1e1e1; border-radius: 10px; outline: none;
+  background: #fff; font-size: 13px;
+}
+.list-search__input::placeholder { color: #9b9b9b; }
+.list-search__clear {
+  position: absolute; right: 6px; top: 50%; transform: translateY(-50%);
+  width: 24px; height: 24px; border: 0; border-radius: 50%;
+  background: #f2ede7; color: #6b5b52; cursor: pointer;
+}
 
-/* 지도 자리 */
+/* =========================
+   세그먼트(정렬/브랜드/반경)
+   ========================= */
+.seg {
+  display: inline-flex; gap: 6px; margin-top: 10px; flex-wrap: wrap;
+  background: #f2eee9; padding: 6px; border-radius: 12px;
+}
+.seg__btn {
+  height: 30px; padding: 0 10px;
+  font-size: 12px; color: #6b5b52;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: 8px; cursor: pointer;
+}
+.seg__btn.is-active {
+  background: #fff; border-color: #e1d7ce; color: #3b2a1a;
+  box-shadow: 0 2px 10px rgba(0,0,0,.06);
+}
+.seg--radius .seg__btn[disabled] { opacity: .5; cursor: default; }
+
+/* =========================
+   동(행정동) 필터 칩
+   ========================= */
+.dong-chips {
+  margin-top: 10px;
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 10px; font-size: 12px; border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.06); background: #efe5dc; color: #6b5b52;
+}
+.chip__count { font-weight: 700; opacity: .7; }
+.chip--filter { cursor: pointer; }
+.chip--filter.is-active { background: #7b5b3a; color: #fff; border-color: #7b5b3a; }
+.chip--dong { background: #efe5dc; color: #6b5b52; }
+.chip--fr   { background: #6A4525; color: #fff; border-color: #6A4525; }
+.chip--lo   { background: #C9A27E; color: #3b2a1a; border-color: #C9A27E; }
+.chip--dist { background: #e9f1ff; color: #2a66f6; border-color: #cfe1ff; }
+
+/* =========================
+   리스트(스크롤 영역)
+   ========================= */
+.list {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 12px 20px;
+  min-height: 0;
+}
+.placeholder {
+  padding: 16px; border: 1px dashed #cfcfcf; border-radius: 12px; color: #777; background: #fff;
+}
+
+/* =========================
+   카드 리스트
+   ========================= */
+.cafe-list {
+  list-style: none; margin: 0; padding: 6px 0 14px; display: grid; gap: 10px;
+}
+
+.cafe-item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 14px 1fr auto; /* 왼쪽 바 | 본문 | 액션 */
+  gap: 12px;
+  align-items: flex-start;
+
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,.06);
+  background:
+    radial-gradient(600px 200px at 20% 0%, rgba(123, 91, 58, .06), transparent 60%),
+    linear-gradient(180deg, #ffffff, #fffdfb 60%);
+  box-shadow: 0 6px 18px rgba(0,0,0,.05);
+  transition: transform .12s ease, box-shadow .12s ease, background .2s ease;
+  cursor: pointer; text-align: left;
+}
+button.cafe-item { border: 1px solid rgba(0,0,0,.06); background: transparent; }
+
+.cafe-item::before {
+  content: ""; width: 6px; height: 100%; border-radius: 8px;
+  background: linear-gradient(180deg, #c9a27e, #b68e6a);
+  display: block; align-self: stretch; opacity: .9;
+}
+.cafe-item.is-franchise::before {
+  background: linear-gradient(180deg, #6A4525, #7b5b3a);
+}
+
+.cafe-item:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 26px rgba(0,0,0,.08);
+  background:
+    radial-gradient(600px 200px at 20% 0%, rgba(123, 91, 58, .09), transparent 60%),
+    linear-gradient(180deg, #ffffff, #fffdf8 60%);
+}
+.cafe-item:focus-visible { outline: 2px solid #b4865a; outline-offset: 2px; }
+
+/* 본문 */
+.cafe-item__body { min-width: 0; } /* 🔑 ellipsis 동작 */
+.cafe-item__title {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 4px;
+}
+.cafe-item__name { font-weight: 800; font-size: 15px; color: #3b2a1a; }
+
+/* 주소 1줄 고정 */
+.cafe-item__addr {
+  display: block;
+  font-size: 12px; color: #6b5b52; line-height: 1.5;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+}
+/* 혹시 충돌 시 강제 */
+.sidebar .cafe-item__addr { white-space: nowrap !important; overflow: hidden !important; text-overflow: ellipsis !important; }
+
+/* 액션 */
+.cafe-item__actions { display: grid; justify-items: end; gap: 6px; }
+.cafe-link { color: #375bd2; text-decoration: none; font-weight: 600; font-size: 12px; }
+.cafe-link:hover { text-decoration: underline; }
+.btn-mini {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid #d9cfc6;
+  background: #fff; color: #6b5b52; font-size: 12px; text-decoration: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,.06);
+}
+.btn-mini:hover { background: #f7f3ef; }
+.btn-mini:active { transform: translateY(1px); }
+.muted { font-size: 12px; color: #9b8f86; }
+
+/* 즐겨찾기(★) */
+.fav-btn {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 1px solid #e7ded5; background: #fff;
+  color: #b9a89a; font-size: 16px; line-height: 26px;
+  box-shadow: 0 3px 10px rgba(0,0,0,.06); cursor: pointer;
+}
+.fav-btn:hover { background: #fff7e0; }
+.fav-btn.is-on { color: #f2a900; border-color: #f2a900; background: #fff9e8; }
+
+/* 스크롤바 */
+.list::-webkit-scrollbar { width: 10px; }
+.list::-webkit-scrollbar-thumb { background: #e9dfd6; border-radius: 8px; }
+.list::-webkit-scrollbar-track { background: transparent; }
+
+/* =========================
+   지도 영역
+   ========================= */
 .map-wrap { padding: 16px 20px; }
 .map-placeholder {
-  height: 420px;
-  border: 1px dashed #cfcfcf;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: #777;
-  background: #fff;
+  height: 420px; border: 1px dashed #cfcfcf; border-radius: 12px;
+  display: grid; place-items: center; color: #777; background: #fff;
 }
