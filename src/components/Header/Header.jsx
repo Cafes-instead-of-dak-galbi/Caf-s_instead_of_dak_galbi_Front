@@ -20,10 +20,6 @@ const Header = () => {
       <nav className="nav">
         <Link to="/" className="page_name">☕ 닭갈비 말고 카페</Link>
         <ul className="nav_list">
-          <li><Link to="/popular">인기</Link></li>
-          <li><Link to="/map">지도</Link></li>
-          <li><Link to="/events">행사</Link></li>
-          <li><Link to="/stories">스토리</Link></li>
         </ul>
       </nav>
 

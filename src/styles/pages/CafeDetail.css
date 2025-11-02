@@ -9,10 +9,9 @@
 
 @supports (background-color: color-mix(in hsl, white 30%, black)) {
   .cafe-detail {
-    background-color: color-mix(in hsl, var(--bg) 70%, white 30%);
+    background-color: color-mix(in hsl, var(--bg, #ffffff) 70%, white 30%);
   }
 }
-
 
 .cafe-info {
   width: 60%;
@@ -34,9 +33,7 @@
   margin-bottom: 20px;
 }
 
-.star-icon {
-  color: #f2b01e;
-}
+.star-icon { color: #f2b01e; }
 
 .cafe-image-box {
   width: 100%;
@@ -48,6 +45,7 @@
   justify-content: center;
   align-items: center;
   margin-bottom: 25px;
+  overflow: hidden;
 }
 
 .cafe-image-placeholder {
@@ -75,9 +73,7 @@
   color: #444;
 }
 
-.price {
-  color: #666;
-}
+.price { color: #666; }
 
 .menu-tags {
   display: flex;
@@ -108,6 +104,10 @@
   text-decoration: none;
 }
 
+.button-copy:hover {
+  filter: brightness(1.08);
+}
+
 .map-section {
   width: 40%;
   border-left: 1px solid #ddd;
@@ -130,6 +130,17 @@
   color: #888;
 }
 
-.button-copy:hover {
-  background-color: #f0f0f0;
+/* 반응형 */
+@media (max-width: 960px) {
+  .cafe-detail {
+    flex-direction: column;
+  }
+  .cafe-info, .map-section {
+    width: 100%;
+  }
+  .map-section {
+    border-left: 0;
+    border-top: 1px solid #ddd;
+  }
+  .menu-item { width: 100%; }
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import "../../styles/pages/Home.css";
 import Header from "../../components/Header/Header";
 import KakaoMap from "../../components/Map/KakaoMap";
@@ -8,6 +9,7 @@ import KakaoMap from "../../components/Map/KakaoMap";
 const keyOf = (p) => p?.id || `${p?.x},${p?.y},${p?.place_name}`;
 const telOf = (p) => (p?.phone || p?.tel || "").trim();
 const addrOf = (p) => p?.road_address_name || p?.address_name || "";
+const sanitizeTel = (t = "") => t.replace(/[^0-9+]/g, ""); // ← tel 링크용 정제
 
 const normalizeBrand = (s = "") =>
   (s.normalize ? s.normalize("NFKD") : s)
@@ -24,8 +26,8 @@ const FRANCHISE_TOKENS = [
 const BRAND_SET = new Set(FRANCHISE_TOKENS.map(normalizeBrand));
 const brandType = (name = "") => {
   const n = normalizeBrand(name);
-  for (const t of BRAND_SET) if (n.includes(t)) return "fr"; // 프랜차이즈
-  return "lo"; // 개인
+  for (const t of BRAND_SET) if (n.includes(t)) return "fr";
+  return "lo";
 };
 
 // Haversine(meters)
@@ -42,16 +44,13 @@ const distanceM = (p, me) => {
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 };
 
-// 로컬 스토리지 (즐겨찾기/클릭/최근)
+// 로컬 스토리지 (즐겨찾기/클릭/최근 + 목록 캐시)
 const LS_KEY = "cafe_stats_v1";
-const loadStats = () => {
-  try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; }
-};
-const saveStats = (obj) => {
-  try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch {}
-};
+const LS_PLACES = "cafe_places_cache_v1";
+const loadStats = () => { try { return JSON.parse(localStorage.getItem(LS_KEY)) || {}; } catch { return {}; } };
+const saveStats = (obj) => { try { localStorage.setItem(LS_KEY, JSON.stringify(obj)); } catch {} };
 
-// 인기 점수(로컬): 즐겨찾기 가중 20, 클릭 2, 최근 방문(24h=+6, 7d=+3)
+// 인기 점수(로컬): 즐겨찾기 20, 클릭*2, 최근(24h=+6, 7d=+3)
 const popularityScore = (st) => {
   if (!st) return 0;
   const fav = st.fav ? 20 : 0;
@@ -66,19 +65,67 @@ const popularityScore = (st) => {
   return fav + clicks + recent;
 };
 
+// 썸네일 유틸
+const thumbOf = (p) =>
+  p?.thumbnail || p?.thumbnail_url || p?.photo || p?.image_url || p?.image || p?.img || null;
+
+const firstLetter = (name = "?") => {
+  const s = name.trim();
+  return s ? s[0].toUpperCase() : "?";
+};
+
+const colorFromString = (s = "") => {
+  const palette = [
+    [0xF5,0xE6,0xC8],
+    [0xFF,0xF9,0xF1],
+    [0xE9,0xF1,0xFF],
+    [0xEC,0xF8,0xF5],
+    [0xF7,0xED,0xE7],
+  ];
+  let h = 0;
+  for (let i=0;i<s.length;i++) h = (h*31 + s.charCodeAt(i)) >>> 0;
+  const c = palette[h % palette.length];
+  return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
+};
+
 // ──────────────────────────────────────────────
 
 export default function Home() {
-  const [places, setPlaces] = useState([]);        // KakaoMap에서 전달되는 원본
+  const [places, setPlaces] = useState([]);        // KakaoMap 원본
   const [mapApi, setMapApi] = useState(null);      // KakaoMap 제어
   const [myLoc, setMyLoc] = useState(null);        // {lat,lng}
   const [query, setQuery] = useState("");
   const [dong, setDong] = useState("전체");
   const [brand, setBrand] = useState("all");       // 'all' | 'fr' | 'lo'
   const [radius, setRadius] = useState("all");     // 'all' | 500 | 1000 | 3000
-  const [sortBy, setSortBy] = useState("popular"); // 'popular' | 'nearest' | 'recent' | 'name'
+  const [sortBy, setSortBy] = useState("popular");// 'popular' | 'nearest' | 'recent' | 'name'
   const [stats, setStats] = useState(() => loadStats());
-  const itemRefs = useRef({});                     // 자동 스크롤용
+  const [showFavOnly, setShowFavOnly] = useState(false); // 즐겨찾기 전용 보기
+  const itemRefs = useRef({});
+
+  // URL 파라미터 → 상태 초기화 (퍼머링크)
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search);
+    const q = sp.get("q");        if (q) setQuery(q);
+    const d = sp.get("dong");     if (d) setDong(d);
+    const b = sp.get("brand");    if (b) setBrand(b);
+    const r = sp.get("r");        if (r) setRadius(r);
+    const s = sp.get("sort");     if (s) setSortBy(s);
+    const fav = sp.get("fav");    if (fav === "1") setShowFavOnly(true);
+  }, []);
+
+  // 상태 변화 → URL 갱신 (퍼머링크)
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    if (dong !== "전체") params.set("dong", dong);
+    if (brand !== "all") params.set("brand", brand);
+    if (radius !== "all") params.set("r", radius);
+    if (sortBy !== "popular") params.set("sort", sortBy);
+    if (showFavOnly) params.set("fav", "1");
+    const newUrl = `${window.location.pathname}?${params.toString()}`;
+    window.history.replaceState({}, "", newUrl);
+  }, [query, dong, brand, radius, sortBy, showFavOnly]);
 
   // 동 목록
   const dongList = useMemo(() => {
@@ -98,25 +145,25 @@ export default function Home() {
     const r = radius === "all" ? Infinity : Number(radius);
 
     return places.filter((p) => {
-      // 동 필터
+      if (showFavOnly) {
+        const k = keyOf(p);
+        if (!stats[k]?.fav) return false;
+      }
       if (dong !== "전체" && (p.__dong || "기타") !== dong) return false;
-      // 브랜드 필터
       if (brand !== "all" && brandType(p.place_name) !== brand) return false;
-      // 검색(이름/동/주소/전화)
+
       if (q) {
-        const text = [
-          p.place_name, p.__dong, addrOf(p), telOf(p)
-        ].filter(Boolean).join(" ").toLowerCase();
+        const text = [p.place_name, p.__dong, addrOf(p), telOf(p)]
+          .filter(Boolean).join(" ").toLowerCase();
         if (!text.includes(q)) return false;
       }
-      // 반경 필터
       if (me && r !== Infinity) {
         const d = distanceM(p, me);
         if (d > r) return false;
       }
       return true;
     });
-  }, [places, dong, brand, query, myLoc, radius]);
+  }, [places, dong, brand, query, myLoc, radius, showFavOnly, stats]);
 
   // 정렬
   const sorted = useMemo(() => {
@@ -141,7 +188,6 @@ export default function Home() {
         return s.sort((a, b) => a.p.place_name.localeCompare(b.p.place_name, "ko")).map((x) => x.p);
       case "popular":
       default:
-        // 동점이면 이름순
         return s
           .sort((a, b) => (b.score - a.score) || a.p.place_name.localeCompare(b.p.place_name, "ko"))
           .map((x) => x.p);
@@ -161,7 +207,6 @@ export default function Home() {
     };
     setStats(next); saveStats(next);
 
-    // 해당 카드로 스크롤
     const el = itemRefs.current[k];
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
   };
@@ -190,11 +235,68 @@ export default function Home() {
     );
   };
 
-  // KakaoMap onPlacesLoaded -> places 세팅
-  const handlePlacesLoaded = (list) => setPlaces(list || []);
+  // KakaoMap onPlacesLoaded -> places 세팅 + 캐시 저장(상세 새로고침 대응)
+  const handlePlacesLoaded = (list) => {
+    const arr = list || [];
+    setPlaces(arr);
+    try { localStorage.setItem(LS_PLACES, JSON.stringify(arr)); } catch {}
+  };
 
   // 주소 1줄 ellipsis가 확실히 먹도록 ref 초기화
   useEffect(() => { itemRefs.current = {}; }, [sorted]);
+
+  // CSV 내보내기
+  const exportCsv = () => {
+    const headers = ["name","dong","addr","tel","x","y"];
+    const rows = sorted.map(p => [
+      p.place_name,
+      p.__dong || "",
+      (addrOf(p) || "").replace(/\n/g, " "),
+      telOf(p) || "",
+      p.x ?? "",
+      p.y ?? ""
+    ]);
+    const esc = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const csv = [headers.join(","), ...rows.map(r => r.map(esc).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "cafes.csv"; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // ──────────────────────────────────────────────
+  // 지도 아래 섹션: 근처 Top5 / 최근 본 카페
+  const placeByKey = useMemo(() => {
+    const m = {};
+    for (const p of places) m[keyOf(p)] = p;
+    return m;
+  }, [places]);
+
+  const topNear = useMemo(() => {
+    if (!myLoc) return [];
+    return [...filtered]
+      .map((p) => ({
+        p,
+        d: distanceM(p, myLoc),
+        s: popularityScore(stats[keyOf(p)]),
+      }))
+      .filter((x) => Number.isFinite(x.d))
+      .sort((a, b) => a.d - b.d || b.s - a.s)
+      .slice(0, 5)
+      .map((x) => x.p);
+  }, [filtered, myLoc, stats]);
+
+  const recentPlaces = useMemo(() => {
+    return Object.entries(stats)
+      .filter(([_, st]) => st?.last)
+      .sort((a, b) => b[1].last - a[1].last)
+      .map(([k]) => placeByKey[k])
+      .filter(Boolean)
+      .slice(0, 8);
+  }, [stats, placeByKey]);
+
+  // ──────────────────────────────────────────────
 
   return (
     <div>
@@ -271,6 +373,20 @@ export default function Home() {
               ))}
             </div>
 
+            {/* 즐겨찾기 토글 + CSV 내보내기 */}
+            <div className="seg seg--tools" aria-label="도구">
+              <button
+                className={`seg__btn ${showFavOnly ? "is-active" : ""}`}
+                onClick={() => setShowFavOnly(v => !v)}
+                title="즐겨찾기한 카페만 보기"
+              >
+                ★ 즐겨찾기만
+              </button>
+              <button className="seg__btn" onClick={exportCsv} title="현재 보이는 리스트를 CSV로 저장">
+                ⬇️ CSV
+              </button>
+            </div>
+
             {/* 동 필터 칩 */}
             <div className="dong-chips" role="group" aria-label="행정동">
               {dongList.map(([name, count]) => (
@@ -299,6 +415,7 @@ export default function Home() {
                   const kakaoTo = `https://map.kakao.com/link/to/${encodeURIComponent(p.place_name)},${p.y},${p.x}`;
                   const isFav = !!stats[k]?.fav;
                   const dist = myLoc ? Math.round(distanceM(p, myLoc)) : null;
+                  const thumb = thumbOf(p);
 
                   return (
                     <li key={k}>
@@ -310,6 +427,26 @@ export default function Home() {
                         title={p.place_name}
                       >
                         {/* 왼쪽 바는 ::before */}
+
+                        {/* 썸네일 */}
+                        <div
+                          className="cafe-item__thumb"
+                          aria-hidden="true"
+                          style={{ background: colorFromString(p.place_name) }}
+                        >
+                          <div className="thumb-fallback">
+                            <span className="thumb-letter">{firstLetter(p.place_name)}</span>
+                          </div>
+                          {thumb && (
+                            <img
+                              src={thumb}
+                              alt=""
+                              loading="lazy"
+                              decoding="async"
+                              onError={(e) => { e.currentTarget.remove(); }}
+                            />
+                          )}
+                        </div>
 
                         {/* 본문 */}
                         <div className="cafe-item__body">
@@ -323,12 +460,21 @@ export default function Home() {
                               <span className="chip chip--dist">{dist >= 1000 ? (dist/1000).toFixed(1)+"km" : dist+"m"}</span>
                             )}
                           </div>
-                          {/* 주소 1줄 고정 */}
                           <div className="cafe-item__addr">{addrOf(p) || "주소 미상"}</div>
                         </div>
 
                         {/* 액션 */}
                         <div className="cafe-item__actions">
+                          {/* 상세 페이지 이동 */}
+                          <Link
+                            className="btn-mini"
+                            to={`/cafe/${encodeURIComponent(p.id || k)}`}
+                            state={{ place: p }}
+                            onClick={(e)=>e.stopPropagation()}
+                          >
+                            상세
+                          </Link>
+
                           {/* 즐겨찾기 */}
                           <button
                             type="button"
@@ -340,16 +486,28 @@ export default function Home() {
                             ★
                           </button>
 
+                          {/* 전화: 유/무 동일 pill UI */}
                           {tel ? (
                             <a
-                              className="cafe-link nowrap"
-                              href={`tel:${tel.replace(/[^0-9+]/g, "")}`}
+                              className="pill pill--tel"
+                              href={`tel:${sanitizeTel(tel)}`}
                               onClick={(e) => e.stopPropagation()}
+                              title="전화 걸기"
                             >
-                              📞 {tel}
+                              <span aria-hidden="true">📞</span>
+                              <span className="nowrap">{tel}</span>
                             </a>
                           ) : (
-                            <span className="muted">전화 없음</span>
+                            <button
+                              type="button"
+                              className="pill pill--tel is-disabled"
+                              aria-disabled="true"
+                              onClick={(e) => e.stopPropagation()}
+                              title="전화 정보 없음"
+                            >
+                              <span aria-hidden="true">📞</span>
+                              <span>전화 없음</span>
+                            </button>
                           )}
 
                           <a
@@ -383,6 +541,68 @@ export default function Home() {
               onMapApi={(api) => setMapApi(api)}
               style={{ width: "100%", height: 480 }}
             />
+          </section>
+
+          {/* ───────────── 지도 하단 콘텐츠 ───────────── */}
+          <section className="below-map">
+            <div className="below-row">
+              <h3 className="below-title">📍 내 위치 근처 Top 5</h3>
+
+              {!myLoc ? (
+                <div className="below-placeholder">
+                  내 위치를 반영하면 가까운 카페를 보여줄게요.
+                  <button className="btn-mini" onClick={useMyLocation} style={{ marginLeft: 8 }}>
+                    📍 내 위치 반영
+                  </button>
+                </div>
+              ) : topNear.length === 0 ? (
+                <div className="below-placeholder">주변에 조건에 맞는 카페가 없어요.</div>
+              ) : (
+                <ul className="mini-list">
+                  {topNear.map((p) => {
+                    const d = Math.round(distanceM(p, myLoc));
+                    return (
+                      <li key={keyOf(p)}>
+                        <button
+                          type="button"
+                          className="mini-card"
+                          onClick={() => focusFromList(p)}
+                          title={p.place_name}
+                        >
+                          <div className="mini-title">{p.place_name}</div>
+                          <div className="mini-meta">
+                            {p.__dong && <span className="chip chip--dong">{p.__dong}</span>}
+                            <span className="chip chip--dist">
+                              {d >= 1000 ? (d / 1000).toFixed(1) + "km" : d + "m"}
+                            </span>
+                          </div>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="below-row">
+              <h3 className="below-title">🕒 최근 본 카페</h3>
+              {recentPlaces.length === 0 ? (
+                <div className="below-placeholder">아직 최근 본 카페가 없어요.</div>
+              ) : (
+                <div className="recent-chips">
+                  {recentPlaces.map((p) => (
+                    <button
+                      key={keyOf(p)}
+                      className="recent-chip"
+                      title={p.place_name}
+                      onClick={() => focusFromList(p)}
+                    >
+                      {p.place_name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </section>
         </main>
       </div>
